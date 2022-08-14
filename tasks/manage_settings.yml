@@ -7,6 +7,13 @@
     url_password: "{{ password }}"
   register: gathered_settings
 
+- name: Get device IDs
+  debug:
+    msg:
+      - "MAC : {{ gathered_settings.json.device.mac }}"
+      - "Hostname : {{ gathered_settings.json.device.hostname }}"
+      - "Name : {{ gathered_settings.json.name }}"
+
 - name: Update settings
   uri:
     url: http://{{ ansible_host }}/settings{% for segment in (item.key | replace('relays','relay') | replace('[','.')| replace(']','')|split('.'))  %}{% if loop.last %}?{% else %}/{% endif %}{{segment}}{% endfor %}={{ item.value | urlencode }}
