@@ -4,3 +4,4 @@ username: "admin"
 firmware_list: "https://api.shelly.cloud/files/firmware"
 firmware_autoupdate: false
 settings_apply: true
+password_unconditionnal_apply: true
