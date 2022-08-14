@@ -6,18 +6,12 @@
     url_password: "{{ password }}"
   register: gathered_shelly
 
-- debug:
-    var: gathered_shelly.json
-
 
 - name: Getting latest firmware available
   uri:
     url: "{{ firmware_list }}"
     method: GET
   register: gathered_shelly_fw
-
-- debug:
-    var: gathered_shelly_fw.json.data["{{ gathered_shelly.json.type }}"]
 
 
 - name: Launching update if enable
