@@ -38,8 +38,7 @@
   when:
     - (gathered_settings_validation.json|ansible.utils.to_paths)[item.key] !=  item.value
     - settings_apply
-  loop: "{{ wanted_settings | ansible.utils.to_paths | dict2items }}"
-  register: update_request_result
-  when:
     - gathered_settings_validation is defined
     - not update_request_result.skipped
+  loop: "{{ wanted_settings | ansible.utils.to_paths | dict2items }}"
+  register: update_request_result
