@@ -1,0 +1,45 @@
+---
+- name: Gathering settings from device
+  uri:
+    url: http://{{ ansible_host }}/settings
+    method: GET
+    url_username: "{{ username }}"
+    url_password: "{{ password }}"
+  register: gathered_settings
+
+- name: Update settings
+  uri:
+    url: http://{{ ansible_host }}/settings{% for segment in (item.key | replace('relays','relay') | replace('[','.')| replace(']','')|split('.'))  %}{% if loop.last %}?{% else %}/{% endif %}{{segment}}{% endfor %}={{ item.value | urlencode }}
+    method: GET
+    url_username: "{{ username }}"
+    url_password: "{{ password }}"
+  when:
+    - item.key != "login.password" and (gathered_settings.json|ansible.utils.to_paths)[item.key] !=  item.value
+    - settings_apply
+  loop: "{{ wanted_settings | ansible.utils.to_paths | dict2items }}"
+  register: update_request_result
+
+- name: Gathering settings from device (validating changes)
+  uri:
+    url: http://{{ ansible_host }}/settings
+    method: GET
+    url_username: "{{ username }}"
+    url_password: "{{ password }}"
+  register: gathered_settings_validation
+  when:
+    - not update_request_result.skipped
+
+- name: Checking settings and fallback if needed
+  uri:
+    url: http://{{ ansible_host }}/settings{% for segment in (item.key | replace('relays','relay') | replace('[','.')| replace(']','')|split('.'))  %}{% if loop.last %}_{% elif loop.index==(loop.length-1) %}?{% else %}/{% endif %}{{segment}}{% endfor %}={{ item.value|urlencode }}
+    method: GET
+    url_username: "{{ username }}"
+    url_password: "{{ password }}"
+  when:
+    - (gathered_settings_validation.json|ansible.utils.to_paths)[item.key] !=  item.value
+    - settings_apply
+  loop: "{{ wanted_settings | ansible.utils.to_paths | dict2items }}"
+  register: update_request_result
+  when:
+    - gathered_settings_validation is defined
+    - not update_request_result.skipped

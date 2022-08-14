@@ -1,0 +1,32 @@
+- name: Getting shelly firmware infos
+  uri:
+    url: http://{{ ansible_host }}/shelly
+    method: GET
+    url_username: "{{ username }}"
+    url_password: "{{ password }}"
+  register: gathered_shelly
+
+- debug:
+    var: gathered_shelly.json
+
+
+- name: Getting latest firmware available
+  uri:
+    url: "{{ firmware_list }}"
+    method: GET
+  register: gathered_shelly_fw
+
+- debug:
+    var: gathered_shelly_fw.json.data["{{ gathered_shelly.json.type }}"]
+
+
+- name: Launching update if enable
+  uri:
+    url: "http://{{ ansible_host }}/ota?url={{ gathered_shelly_fw.json.data[gathered_shelly.json.type].url }}"
+    method: GET
+    url_username: "{{ username }}"
+    url_password: "{{ password }}"
+  register: upgrade_result
+  when:
+    - gathered_shelly.json.fw != gathered_shelly_fw.json.data[gathered_shelly.json.type].version
+    - firmware_autoupdate

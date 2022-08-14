@@ -1,0 +1,12 @@
+---
+# tasks file for shelly
+
+- name: Manage settings
+  include_tasks: manage_settings.yml
+  when:
+    - firmware_list is defined
+
+- name: Manage firmware
+  include_tasks: manage_firmware.yml
+  when:
+    - wanted_settings is defined
