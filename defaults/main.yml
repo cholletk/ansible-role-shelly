@@ -1,0 +1,6 @@
+---
+# defaults file for shelly
+username: "admin"
+firmware_list: "https://api.shelly.cloud/files/firmware"
+firmware_autoupdate: false
+settings_apply: true
