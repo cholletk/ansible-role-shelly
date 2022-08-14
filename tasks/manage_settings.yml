@@ -14,7 +14,7 @@
     url_username: "{{ username }}"
     url_password: "{{ password }}"
   when:
-    - item.key != "login.password" and (gathered_settings.json|ansible.utils.to_paths)[item.key] !=  item.value
+    - item.key == "login.password" or (item.key in (gathered_settings.json|ansible.utils.to_paths)and (gathered_settings.json|ansible.utils.to_paths)[item.key] !=  item.value)
     - settings_apply
   loop: "{{ wanted_settings | ansible.utils.to_paths | dict2items }}"
   register: update_request_result
