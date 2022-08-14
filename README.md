@@ -1,38 +1,60 @@
-Role Name
+Shelly
 =========
 
-A brief description of the role goes here.
+Role used to manage config and firmware update of shelly devices (Allterco Robotics Ltd.)
 
 Requirements
 ------------
 
-Any pre-requisites that may not be covered by Ansible itself or the role should be mentioned here. For instance, if the role uses the EC2 module, it may be a good idea to mention in this section that the boto package is required.
+No specific requirements
 
 Role Variables
 --------------
 
-A description of the settable variables for this role should go here, including any variables that are in defaults/main.yml, vars/main.yml, and any variables that can/should be set via parameters to the role. Any variables that are read from other roles and/or the global scope (ie. hostvars, group vars, etc.) should be mentioned here as well.
+Variable name | Description | Example
+ --- | --- | ---
+username | Username used to connect to shelly api | "admin"
+password | Password used to connect to shelly api | "XXXXX"
+firmware_list | Firmware list used for checking updates | "https://api.shelly.cloud/files/firmware" (default)
+firmware_autoupdate | Define if firmware will be updated during the run | false (default)
+settings_apply | Define if settings defined should be applied or only checked | true (default)
+wanted_settings | Define the structure (yaml) of config that be applied to shelly device |  see below
+
+### Shelly config
+The Shelly config structure could be checked out here : https://shelly-api-docs.shelly.cloud/gen1/#settings
+wanted_settings variable should look like that:
+
+```
+led_status_disable: false
+   discoverable: false
+   relays:
+     - name: "Channel 1"
+     - name: "Channel 2"
+   sntp:
+     server: time.google.com
+   cloud:
+     enabled: false
+```
+
+
 
 Dependencies
 ------------
 
-A list of other roles hosted on Galaxy should go here, plus any details in regards to parameters that may need to be set for other roles, or variables that are used from other roles.
+No dependencies
 
 Example Playbook
 ----------------
 
-Including an example of how to use your role (for instance, with variables passed in as parameters) is always nice for users too:
+```
+- hosts: all
+  gather_facts: no
+  roles:
+    - shelly
 
-    - hosts: servers
-      roles:
-         - { role: username.rolename, x: 42 }
+```
 
 License
 -------
 
 BSD
-
-Author Information
-------------------
-
-An optional section for the role authors to include contact information, or a website (HTML is not allowed).
