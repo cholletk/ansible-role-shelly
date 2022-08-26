@@ -16,7 +16,7 @@
 
 - name: Update settings
   uri:
-    url: http://{{ ansible_host }}/settings{% for segment in (item.key | replace('relays','relay') | replace('[','.')| replace(']','')|split('.'))  %}{% if loop.last %}?{% else %}/{% endif %}{{segment}}{% endfor %}={{ item.value | urlencode }}
+    url: http://{{ ansible_host }}/settings{% for segment in (item.key | replace('relays','relay') | replace('lights','light') | replace('[','.')| replace(']','')|split('.'))  %}{% if loop.last %}?{% else %}/{% endif %}{{segment}}{% endfor %}={{ item.value | urlencode }}
     method: GET
     url_username: "{{ username }}"
     url_password: "{{ password }}"
