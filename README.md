@@ -1,42 +1,86 @@
 Shelly
-=========
+======
 
-Role used to manage config and firmware update of shelly devices (Allterco Robotics Ltd.)
+Role used to manage config and firmware of Shelly devices (Allterco Robotics Ltd.):
+
+- **Gen1** (Shelly 1, 2.5, Dimmer 2, Button1...) through the HTTP `/settings` API;
+- **Gen2+** (Plus, Pro, Gen3, Gen4) through the JSON-RPC API (`/rpc`), with the
+  device digest authentication (SHA-256) handled by the bundled `shelly_rpc` module.
+
+The generation is detected from `http://<device>/shelly`.
 
 Requirements
 ------------
 
-No specific requirements
+- `ansible-core` >= 2.15
+- collection `ansible.utils` (Gen1 only): `ansible-galaxy collection install -r requirements.yml`
+- the controller must reach the devices over HTTP (tasks run on localhost)
 
 Role Variables
 --------------
 
-Variable name | Description | Example
+Variable name | Description | Default
  --- | --- | ---
-username | Username used to connect to shelly api | "admin"
-password | Password used to connect to shelly api | "XXXXX"
-firmware_list | Firmware list used for checking updates | "https://api.shelly.cloud/files/firmware" (default)
-firmware_autoupdate | Define if firmware will be updated during the run | false (default)
-settings_apply | Define if settings defined should be applied or only checked | true (default)
-wanted_settings | Define the structure (yaml) of config that be applied to shelly device |  see below
+username | Username used to connect to the shelly API (always `admin` on Gen2+) | `"admin"`
+password | Device password (put it in a vault). Gen2+: also enables authentication if it is off | undefined
+firmware_autoupdate | Update the firmware during the run | `false`
+settings_apply | Apply the settings (`false`: only check them) | `true`
+firmware_list | Gen1: firmware list used for checking updates | `"https://api.shelly.cloud/files/firmware"`
+password_unconditionnal_apply | Gen1: always resend the login block | `true`
+wanted_settings | Gen1: structure of the `/settings` config to apply | see below
+shelly_gen2_config | Gen2+: wanted config per component (`sys`, `mqtt`, `switch:0`, `input:1`...) | `{}`
+shelly_gen2_secret_keys | Gen2+: write-only keys never returned by `GetConfig` | `["pass"]`
+shelly_gen2_force_secrets | Gen2+: send components holding a secret on every run | `false`
+shelly_reboot_when_required | Gen2+: reboot when a `SetConfig` answers `restart_required` | `true`
+shelly_scripts | Gen2+: embedded scripts to deploy (`name`, `src` template, `enable`, `start`) | `[]`
+shelly_gen2_firmware_stage | Gen2+: firmware channel used by `Shelly.Update` | `"stable"`
 
-### Shelly config
-The Shelly config structure could be checked out here : https://shelly-api-docs.shelly.cloud/gen1/#settings
-wanted_settings variable should look like that:
+### Gen1 config
+The structure is documented here: https://shelly-api-docs.shelly.cloud/gen1/#settings
 
+```yaml
+wanted_settings:
+  led_status_disable: false
+  discoverable: false
+  relays:
+    - name: "Channel 1"
+    - name: "Channel 2"
+  sntp:
+    server: time.google.com
+  cloud:
+    enabled: false
+  login:                       # always sent as one request
+    enabled: true
+    username: admin
+    password: "{{ vault_shelly_password }}"
 ```
-led_status_disable: false
-   discoverable: false
-   relays:
-     - name: "Channel 1"
-     - name: "Channel 2"
-   sntp:
-     server: time.google.com
-   cloud:
-     enabled: false
+
+### Gen2+ config
+Component names and keys are the ones of `Shelly.GetConfig`
+(https://shelly-api-docs.shelly.cloud/gen2/). Only the listed keys are managed and
+a component is written only when one of them differs.
+
+```yaml
+password: "{{ vault_shelly_password }}"
+shelly_gen2_config:
+  sys:
+    device: {name: "Interrupteur chambre"}
+  switch:0:
+    name: "Alim lampe"
+    in_mode: detached
+    initial_state: "on"
+  mqtt:
+    enable: true
+    server: "192.168.128.52:1883"
+    user: shelly_mqtt
+    pass: "{{ vault_shelly_mqtt_password }}"
+shelly_scripts:
+  - name: chambre_lampe
+    src: "{{ playbook_dir }}/scripts/chambre_lampe.js"
 ```
 
-
+Scripts are Jinja2 templates and must be plain ASCII: the device does not keep
+multi-byte characters, which would make the script re-upload on every run.
 
 Dependencies
 ------------
@@ -46,12 +90,25 @@ No dependencies
 Example Playbook
 ----------------
 
-```
-- hosts: all
-  gather_facts: no
+```yaml
+- hosts: shelly
+  gather_facts: false
   roles:
     - shelly
+```
 
+```yaml
+# inventory
+shelly:
+  hosts:
+    interrupteur-chambre:
+      ansible_host: 192.168.1.62
+  vars:
+    ansible_connection: local
+```
+
+```sh
+ansible-playbook -i inventory.yml site.yml -e @secrets.vault.yml --ask-vault-pass --check
 ```
 
 License
