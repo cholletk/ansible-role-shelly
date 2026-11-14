@@ -1,0 +1,29 @@
+---
+# Deploy one embedded script (Gen2+): create, upload code if it differs, enable, start.
+- name: "List scripts ({{ script.name }})"
+  shelly_rpc:
+    host: "{{ ansible_host }}"
+    method: Script.List
+    password: "{{ password | default(omit) }}"
+  register: _scripts
+  delegate_to: localhost
+
+- name: "Create script {{ script.name }}"
+  shelly_rpc:
+    host: "{{ ansible_host }}"
+    method: Script.Create
+    params:
+      name: "{{ script.name }}"
+    password: "{{ password | default(omit) }}"
+  register: _created
+  delegate_to: localhost
+  when: _scripts.result.scripts | selectattr('name', 'equalto', script.name) | list | length == 0
+
+- name: "Stop here in check mode: the new script has no id yet ({{ script.name }})"
+  debug:
+    msg: "{{ script.name }} would be created, uploaded, enabled and started"
+  when: ansible_check_mode and _created is changed
+
+- name: "Deploy {{ script.name }}"
+  include_tasks: gen2_script_deploy.yml
+  when: not (ansible_check_mode and _created is changed)

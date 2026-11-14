@@ -1,12 +1,34 @@
 ---
 # tasks file for shelly
 
-- name: Manage settings
+- name: Detect device generation
+  uri:
+    url: "http://{{ ansible_host }}/shelly"
+    method: GET
+    return_content: true
+  register: shelly_info
+  delegate_to: localhost
+  check_mode: false   # read-only, needed to plan the rest in --check
+
+- name: Set device facts
+  set_fact:
+    shelly_gen: "{{ shelly_info.json.gen | default(1) | int }}"
+    shelly_device_id: "{{ shelly_info.json.id | default(shelly_info.json.mac) }}"
+
+# Gen1 (original role)
+- name: Manage settings (Gen1)
   include_tasks: manage_settings.yml
   when:
-    - firmware_list is defined
+    - shelly_gen | int == 1
+    - wanted_settings is defined
 
-- name: Manage firmware
+- name: Manage firmware (Gen1)
   include_tasks: manage_firmware.yml
   when:
-    - wanted_settings is defined
+    - shelly_gen | int == 1
+    - firmware_list is defined
+
+# Gen2+ (RPC API)
+- name: Manage Gen2+ device
+  include_tasks: gen2.yml
+  when: shelly_gen | int >= 2

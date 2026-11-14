@@ -1,7 +1,35 @@
 ---
 # defaults file for shelly
+
+# Credentials. Gen2+ devices always use the "admin" user.
 username: "admin"
-firmware_list: "https://api.shelly.cloud/files/firmware"
+# password: "XXXX"            # set it in a vault file, never in clear text
+
+firmware_list: "https://api.shelly.cloud/files/firmware"   # Gen1 only
 firmware_autoupdate: false
 settings_apply: true
-password_unconditionnal_apply: true
+password_unconditionnal_apply: true                        # Gen1 only
+
+# --- Gen2+ (Plus / Pro / Gen3 / Gen4) ---------------------------------------
+# Component configuration, keyed by component name as shown by
+# Shelly.GetConfig: sys, wifi, cloud, ble, mqtt, switch:0, input:1, cover:0...
+# Only the listed keys are managed; everything else is left untouched.
+shelly_gen2_config: {}
+
+# Keys the device never returns from *.GetConfig (secrets). They are sent when
+# another key of the same component changes, or always if this is true.
+shelly_gen2_force_secrets: false
+shelly_gen2_secret_keys: ["pass"]
+
+# Reboot the device when a SetConfig answers restart_required.
+shelly_reboot_when_required: true
+
+# Embedded scripts:
+#   - name: chambre_lampe
+#     src: "{{ playbook_dir }}/scripts/chambre_lampe.js"   # Jinja2 template
+#     enable: true                                        # start at boot
+#     start: true                                         # make sure it runs now
+shelly_scripts: []
+
+# Firmware channel used by Shelly.Update when firmware_autoupdate is true.
+shelly_gen2_firmware_stage: "stable"

@@ -1,0 +1,61 @@
+---
+- name: Enable authentication (Gen2+)
+  shelly_rpc:
+    host: "{{ ansible_host }}"
+    method: Shelly.SetAuth
+    params:
+      user: admin
+      realm: "{{ shelly_device_id }}"
+      ha1: "{{ ('admin:' ~ shelly_device_id ~ ':' ~ password) | hash('sha256') }}"
+  delegate_to: localhost
+  no_log: true
+  when:
+    - password is defined and password | length > 0
+    - not (shelly_info.json.auth_en | default(false) | bool)
+
+- name: Configure components (Gen2+)
+  include_tasks: gen2_component.yml
+  loop: "{{ shelly_gen2_config | dict2items }}"
+  loop_control:
+    loop_var: component
+    label: "{{ component.key }}"
+  when: settings_apply | bool
+
+- name: Manage scripts (Gen2+)
+  include_tasks: gen2_script.yml
+  loop: "{{ shelly_scripts }}"
+  loop_control:
+    loop_var: script
+    label: "{{ script.name }}"
+
+- name: Check for firmware update (Gen2+)
+  shelly_rpc:
+    host: "{{ ansible_host }}"
+    method: Shelly.CheckForUpdate
+    password: "{{ password | default(omit) }}"
+    timeout: 30          # the device asks the Shelly cloud, it can be slow
+  register: shelly_fw
+  delegate_to: localhost
+  failed_when: false     # informational: never fail the play on it
+
+- name: Report available firmware (Gen2+)
+  when: shelly_fw.result is defined
+  debug:
+    msg: >-
+      {{ shelly_device_id }}: firmware {{ shelly_info.json.ver }}
+      {%- if shelly_fw.result[shelly_gen2_firmware_stage] is defined %}
+      -> {{ shelly_fw.result[shelly_gen2_firmware_stage].version }} available
+      {%- else %} is up to date{% endif %}
+
+- name: Update firmware (Gen2+)
+  shelly_rpc:
+    host: "{{ ansible_host }}"
+    method: Shelly.Update
+    params:
+      stage: "{{ shelly_gen2_firmware_stage }}"
+    password: "{{ password | default(omit) }}"
+  delegate_to: localhost
+  when:
+    - firmware_autoupdate | bool
+    - shelly_fw.result is defined
+    - shelly_fw.result[shelly_gen2_firmware_stage] is defined

@@ -1,2 +1,11 @@
 ---
 # handlers file for shelly
+- name: Reboot shelly when required
+  shelly_rpc:
+    host: "{{ ansible_host }}"
+    method: Shelly.Reboot
+    password: "{{ password | default(omit) }}"
+  delegate_to: localhost
+  when:
+    - shelly_reboot_when_required | bool
+    - shelly_restart_required | default(false) | bool

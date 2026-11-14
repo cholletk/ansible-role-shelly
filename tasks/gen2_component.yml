@@ -1,0 +1,42 @@
+---
+# Configure one Gen2+ component idempotently.
+# component.key: "sys", "mqtt", "switch:0"...   component.value: wanted config
+- name: "Resolve RPC namespace for {{ component.key }}"
+  set_fact:
+    _ns: >-
+      {{ {'sys': 'Sys', 'wifi': 'WiFi', 'cloud': 'Cloud', 'ble': 'BLE', 'mqtt': 'MQTT',
+          'ws': 'Ws', 'eth': 'Eth', 'ui': 'UI', 'switch': 'Switch', 'input': 'Input',
+          'cover': 'Cover', 'light': 'Light', 'em': 'EM', 'pm1': 'PM1'}[component.key.split(':')[0]] }}
+    _id_params: "{{ {'id': component.key.split(':')[1] | int} if ':' in component.key else {} }}"
+    _wanted_public: "{{ component.value | dict2items | rejectattr('key', 'in', shelly_gen2_secret_keys) | items2dict }}"
+    _has_secret: "{{ component.value.keys() | select('in', shelly_gen2_secret_keys) | list | length > 0 }}"
+
+- name: "Read {{ component.key }} configuration"
+  shelly_rpc:
+    host: "{{ ansible_host }}"
+    method: "{{ _ns }}.GetConfig"
+    params: "{{ _id_params }}"
+    password: "{{ password | default(omit) }}"
+  register: _current
+  delegate_to: localhost
+
+- name: "Apply {{ component.key }} configuration"
+  shelly_rpc:
+    host: "{{ ansible_host }}"
+    method: "{{ _ns }}.SetConfig"
+    params: "{{ _id_params | combine({'config': component.value}) }}"
+    password: "{{ password | default(omit) }}"
+  register: _set
+  delegate_to: localhost
+  no_log: "{{ _has_secret | bool }}"
+  when: >-
+    (_current.result | combine(_wanted_public, recursive=True)) != _current.result
+    or (_has_secret | bool and shelly_gen2_force_secrets | bool)
+  notify: Reboot shelly when required
+
+- name: "Remember that {{ component.key }} needs a reboot"
+  set_fact:
+    shelly_restart_required: true
+  when:
+    - _set is changed
+    - _set.result.restart_required | default(false) | bool
