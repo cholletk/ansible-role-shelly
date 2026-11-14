@@ -6,6 +6,7 @@
     url_username: "{{ username }}"
     url_password: "{{ password }}"
   register: gathered_settings
+  check_mode: false   # read-only
 
 - name: Get device IDs
   debug:
@@ -14,6 +15,21 @@
       - "Hostname : {{ gathered_settings.json.device.hostname }}"
       - "Name : {{ gathered_settings.json.name }}"
 
+# login must be sent in ONE request: enabling it alone first locks the device
+# with its previous credentials (admin/admin) before the new password is set.
+- name: Update login (Gen1)
+  uri:
+    url: "http://{{ ansible_host }}/settings/login?{{ {'enabled': (wanted_settings.login.enabled | default(true) | bool) | ternary('1', '0'), 'username': wanted_settings.login.username | default(username), 'password': wanted_settings.login.password} | urlencode }}"
+    method: GET
+    url_username: "{{ username }}"
+    url_password: "{{ password }}"
+    force_basic_auth: true
+  no_log: true
+  when:
+    - settings_apply
+    - wanted_settings.login is defined
+    - password_unconditionnal_apply or not (gathered_settings.json.login.enabled | default(false) | bool)
+
 - name: Update settings
   uri:
     url: http://{{ ansible_host }}/settings{% for segment in (item.key | replace('relays','relay') | replace('lights','light') | replace('[','.')| replace(']','')|split('.'))  %}{% if loop.last %}?{% else %}/{% endif %}{{segment}}{% endfor %}={{ item.value | urlencode }}
@@ -21,9 +37,9 @@
     url_username: "{{ username }}"
     url_password: "{{ password }}"
   when:
-    - (item.key == "login.password" and password_unconditionnal_apply) or (item.key in (gathered_settings.json|ansible.utils.to_paths) and (gathered_settings.json|ansible.utils.to_paths)[item.key] !=  item.value)
+    - (item.key in (gathered_settings.json|ansible.utils.to_paths) and (gathered_settings.json|ansible.utils.to_paths)[item.key] !=  item.value)
     - settings_apply
-  loop: "{{ wanted_settings | ansible.utils.to_paths | dict2items }}"
+  loop: "{{ wanted_settings | dict2items | rejectattr('key', 'eq', 'login') | items2dict | ansible.utils.to_paths | dict2items }}"
   register: update_request_result
 
 - name: Gathering settings from device (validating changes)
@@ -33,6 +49,7 @@
     url_username: "{{ username }}"
     url_password: "{{ password }}"
   register: gathered_settings_validation
+  check_mode: false   # read-only
   when:
     - not update_request_result.skipped
 
@@ -43,9 +60,9 @@
     url_username: "{{ username }}"
     url_password: "{{ password }}"
   when:
-    - item.key in (gathered_settings_validation.json|ansible.utils.to_paths) and (gathered_settings_validation.json|ansible.utils.to_paths)[item.key] !=  item.value
+    # evaluated in order: only compare once the validation read really happened
     - settings_apply
-    - gathered_settings_validation is defined
-    - not update_request_result.skipped
-  loop: "{{ wanted_settings | ansible.utils.to_paths | dict2items }}"
+    - gathered_settings_validation.json is defined
+    - item.key in (gathered_settings_validation.json|ansible.utils.to_paths) and (gathered_settings_validation.json|ansible.utils.to_paths)[item.key] !=  item.value
+  loop: "{{ wanted_settings | dict2items | rejectattr('key', 'eq', 'login') | items2dict | ansible.utils.to_paths | dict2items }}"
   register: update_request_result

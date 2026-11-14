@@ -5,6 +5,7 @@
     url_username: "{{ username }}"
     url_password: "{{ password }}"
   register: gathered_shelly
+  check_mode: false   # read-only
 
 
 - name: Getting latest firmware available
@@ -12,6 +13,7 @@
     url: "{{ firmware_list }}"
     method: GET
   register: gathered_shelly_fw
+  check_mode: false   # read-only
 
 
 - name: Launching update if enable
