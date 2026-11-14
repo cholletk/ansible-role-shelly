@@ -1,0 +1,85 @@
+---
+# Upload/enable/start an existing script (id known). Included from gen2_script.yml.
+- name: "Resolve script id ({{ script.name }})"
+  set_fact:
+    _script_id: >-
+      {{ _created.result.id if _created is changed
+         else (_scripts.result.scripts | selectattr('name', 'equalto', script.name) | first).id }}
+    _script_running: >-
+      {{ (_scripts.result.scripts | selectattr('name', 'equalto', script.name) | map(attribute='running') | first)
+         | default(false) }}
+    _script_code: "{{ lookup('template', script.src) }}"
+
+# The device mangles multi-byte characters, which breaks the code comparison
+# (the script would be re-uploaded on every run).
+- name: "Check that the script is plain ASCII ({{ script.name }})"
+  assert:
+    that: _script_code is regex('^[\x00-\x7f]*$')
+    fail_msg: "{{ script.src }}: use ASCII only (no accents), Shelly does not keep multi-byte characters"
+    quiet: true
+
+- name: "Read current code ({{ script.name }})"
+  shelly_rpc:
+    host: "{{ ansible_host }}"
+    method: Script.GetCode
+    params:
+      id: "{{ _script_id | int }}"
+      len: 20000
+    password: "{{ password | default(omit) }}"
+  register: _code
+  delegate_to: localhost
+  failed_when: false
+
+- name: "Upload code ({{ script.name }})"
+  when: (_code.result.data | default('')) != _script_code
+  block:
+    - name: "Stop script before upload ({{ script.name }})"
+      shelly_rpc:
+        host: "{{ ansible_host }}"
+        method: Script.Stop
+        params: {id: "{{ _script_id | int }}"}
+        password: "{{ password | default(omit) }}"
+      delegate_to: localhost
+      when: _script_running | bool
+
+    - name: "Put code in 1 KiB chunks ({{ script.name }})"
+      shelly_rpc:
+        host: "{{ ansible_host }}"
+        method: Script.PutCode
+        params:
+          id: "{{ _script_id | int }}"
+          code: "{{ _script_code[(chunk * 1024):((chunk + 1) * 1024)] }}"
+          append: "{{ chunk > 0 }}"
+        password: "{{ password | default(omit) }}"
+      delegate_to: localhost
+      loop: "{{ range(0, ((_script_code | length) / 1024) | round(0, 'ceil') | int) | list }}"
+      loop_control:
+        loop_var: chunk
+
+    - name: "Mark script as stopped after upload ({{ script.name }})"
+      set_fact:
+        _script_running: false
+
+- name: "Enable at boot ({{ script.name }})"
+  shelly_rpc:
+    host: "{{ ansible_host }}"
+    method: Script.SetConfig
+    params:
+      id: "{{ _script_id | int }}"
+      config: {enable: "{{ script.enable | default(true) | bool }}"}
+    password: "{{ password | default(omit) }}"
+  delegate_to: localhost
+  when: >-
+    (_scripts.result.scripts | selectattr('name', 'equalto', script.name) | map(attribute='enable') | first | default(false))
+    != (script.enable | default(true) | bool)
+
+- name: "Start script ({{ script.name }})"
+  shelly_rpc:
+    host: "{{ ansible_host }}"
+    method: Script.Start
+    params: {id: "{{ _script_id | int }}"}
+    password: "{{ password | default(omit) }}"
+  delegate_to: localhost
+  when:
+    - script.start | default(true) | bool
+    - not (_script_running | bool)
