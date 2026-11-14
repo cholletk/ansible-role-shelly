@@ -51,7 +51,8 @@
   register: gathered_settings_validation
   check_mode: false   # read-only
   when:
-    - not update_request_result.skipped
+    # at least one setting was sent ("skipped" only exists when every item was skipped)
+    - update_request_result.results | default([]) | rejectattr('skipped', 'defined') | list | length > 0
 
 - name: Checking settings and fallback if needed
   uri:
